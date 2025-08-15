@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Localizador Mobile</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <style>
+        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', Tahoma, sans-serif; }
+        #map { height: 100%; width: 100%; }
+        #panel {
+            position: absolute;
+            top: 10px; left: 10px;
+            background: rgba(255,255,255,0.9);
+            padding: 10px 15px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.3);
+            z-index: 1000;
+        }
+        .btn-floating {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 1000;
+        }
+        .btn-floating button {
+            width: 60px; height: 60px;
+            border-radius: 50%;
+            border: none;
+            background-color: #4CAF50;
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+            transition: 0.3s;
+        }
+        .btn-floating button:hover { background-color: #45a049; }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+
+    <div id="panel">
+        <p id="status">Clique no botão para iniciar rastreamento.</p>
+    </div>
+
+    <div class="btn-floating">
+        <button onclick="toggleTracking()" id="btnStart">▶</button>
+        <button onclick="centerMap()">📍</button>
+        <button onclick="clearHistory()">🗑</button>
+    </div>
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script>
+        let map, marker, watchId = null;
+        let pathLine, pathCoords = [];
+        let tracking = false;
+
+        function initMap(lat = 0, lon = 0) {
+            if (!map) {
+                map = L.map('map').setView([lat, lon], 16);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19,
+                    attribution: '&copy; OpenStreetMap'
+                }).addTo(map);
+            }
+        }
+
+        function startTracking() {
+            if (!navigator.geolocation) {
+                document.getElementById("status").innerText = "Geolocalização não suportada pelo navegador.";
+                return;
+            }
+
+            watchId = navigator.geolocation.watchPosition(
+                (position) => {
+                    const lat = position.coords.latitude;
+                    const lon = position.coords.longitude;
+                    const accuracy = position.coords.accuracy;
+
+                    document.getElementById("status").innerText = 
+                        `Lat: ${lat.toFixed(6)}, Lon: ${lon.toFixed(6)}, Prec.: ±${accuracy}m`;
+
+                    initMap(lat, lon);
+
+                    if (!marker) {
+                        marker = L.marker([lat, lon]).addTo(map).bindPopup("Você está aqui!").openPopup();
+                        pathCoords.push([lat, lon]);
+                        pathLine = L.polyline(pathCoords, { color: 'blue' }).addTo(map);
+                    } else {
+                        marker.setLatLng([lat, lon]);
+                        pathCoords.push([lat, lon]);
+                        pathLine.setLatLngs(pathCoords);
+                        if (tracking) map.setView([lat, lon]);
+                    }
+                },
+                (error) => {
+                    document.getElementById("status").innerText = `Erro: ${error.message}`;
+                },
+                { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
+            );
+        }
+
+        function toggleTracking() {
+            if (!tracking) {
+                tracking = true;
+                document.getElementById("btnStart").innerText = "⏸";
+                startTracking();
+            } else {
+                tracking = false;
+                document.getElementById("btnStart").innerText = "▶";
+                if (watchId) navigator.geolocation.clearWatch(watchId);
+            }
+        }
+
+        function centerMap() {
+            if (marker) {
+                map.setView(marker.getLatLng());
+            }
+        }
+
+        function clearHistory() {
+            if (pathLine) {
+                map.removeLayer(pathLine);
+                pathLine = null;
+                pathCoords = [];
+            }
+        }
+    </script>
+</body>
+</html>
